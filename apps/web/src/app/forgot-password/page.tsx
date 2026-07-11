@@ -19,8 +19,8 @@ export default function ForgotPasswordPage() {
     setMessage(null);
 
     try {
-      // @ts-expect-error: Better Auth client SDK sometimes requires full generic inference for emailAndPassword plugin methods
-      const { data, error } = await authClient.forgetPassword({
+      // @ts-expect-error: Better Auth client SDK dynamic proxy needs precise inference
+      const { data, error } = await authClient.requestPasswordReset({
         email,
         redirectTo: '/reset-password',
       });
