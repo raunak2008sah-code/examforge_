@@ -19,7 +19,6 @@ export default function ForgotPasswordPage() {
     setMessage(null);
 
     try {
-      // @ts-expect-error: Better Auth client SDK dynamic proxy needs precise inference
       const { data, error } = await authClient.requestPasswordReset({
         email,
         redirectTo: '/reset-password',
