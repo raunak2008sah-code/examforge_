@@ -11,7 +11,7 @@ export async function GET(
     const session = await authService.requireAuth();
     const { id } = await params;
     const attempt = await AttemptService.getAttempt(id, session.user.id);
-    return NextResponse.json(attempt);
+    return NextResponse.json({ ...attempt, serverTime: Date.now() });
   } catch (error: any) {
     if (error instanceof DomainError) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.statusCode });

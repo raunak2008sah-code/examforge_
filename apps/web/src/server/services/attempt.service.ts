@@ -69,12 +69,33 @@ export class AttemptService {
   }
 
   static async submitAttempt(attemptId: string, userId: string, isAutoSubmit = false) {
-    const attempt = await AttemptRepository.getAttemptWithResponses(attemptId);
-    if (!attempt || attempt.userId !== userId) throw new ForbiddenError('Access denied');
-    if (attempt.status !== 'IN_PROGRESS') return attempt;
+    return prisma.$transaction(async (tx) => {
+      const attempt = await tx.attempt.findUnique({
+        where: { id: attemptId },
+        include: {
+          responses: true,
+          examVersion: {
+            include: {
+              sections: {
+                include: { questions: { include: { options: true } } }
+              }
+            }
+          }
+        }
+      });
+      if (!attempt || attempt.userId !== userId) throw new ForbiddenError('Access denied');
+      if (attempt.status !== 'IN_PROGRESS') return attempt;
 
-    const score = EvaluationService.calculateScore(attempt, attempt.examVersion);
-    
-    return AttemptRepository.submitAttempt(attemptId, score, isAutoSubmit);
+      const score = EvaluationService.calculateScore(attempt as any, attempt.examVersion as any);
+      
+      return tx.attempt.update({
+        where: { id: attemptId },
+        data: {
+          status: isAutoSubmit ? 'AUTO_SUBMITTED' : 'SUBMITTED',
+          submittedAt: new Date(),
+          score,
+        }
+      });
+    });
   }
 }

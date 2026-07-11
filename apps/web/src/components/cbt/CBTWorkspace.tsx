@@ -1,22 +1,33 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Loader2, Clock, ChevronLeft, ChevronRight, Bookmark } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Loader2, Clock, ChevronLeft, ChevronRight, Bookmark, WifiOff, CloudUpload } from 'lucide-react';
 import { Button } from '../ui/forms/Button';
 import { useRouter } from 'next/navigation';
 
+type CBTState = 'LOADING' | 'ACTIVE' | 'SUBMITTING' | 'RECONNECTING' | 'FAILED';
+type QueueItem = { questionId: string; selectedOptionId: string | null; markedForReview: boolean; timestamp: number };
+
 export function CBTWorkspace({ attemptId }: { attemptId: string }) {
   const [attempt, setAttempt] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [fsmState, setFsmState] = useState<CBTState>('LOADING');
   const [error, setError] = useState<string | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
-  const [saving, setSaving] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'SYNCED' | 'SYNCING' | 'ERROR'>('SYNCED');
+  
   const router = useRouter();
 
   const [activeSectionIdx, setActiveSectionIdx] = useState(0);
   const [activeQuestionIdx, setActiveQuestionIdx] = useState(0);
   const [responses, setResponses] = useState<Record<string, { selectedOptionId: string | null, markedForReview: boolean }>>({});
+  
+  // Hardening: Refs for timer offset and sync queue
+  const timeOffsetRef = useRef<number>(0);
+  const expiresAtRef = useRef<number>(0);
+  const syncQueueRef = useRef<QueueItem[]>([]);
+  const isSyncingRef = useRef<boolean>(false);
 
+  // Initialization
   useEffect(() => {
     fetch(`/api/v1/attempts/${attemptId}`)
       .then(r => r.json())
@@ -28,8 +39,12 @@ export function CBTWorkspace({ attemptId }: { attemptId: string }) {
          }
          
          setAttempt(data);
-         const remaining = Math.max(0, new Date(data.expiresAt).getTime() - Date.now());
-         setTimeRemaining(Math.floor(remaining / 1000));
+         
+         // Server authoritative time calibration
+         const localNow = Date.now();
+         const serverNow = data.serverTime || localNow;
+         timeOffsetRef.current = serverNow - localNow;
+         expiresAtRef.current = new Date(data.expiresAt).getTime();
          
          const initialResponses: any = {};
          for (const r of data.responses || []) {
@@ -39,62 +54,127 @@ export function CBTWorkspace({ attemptId }: { attemptId: string }) {
             };
          }
          setResponses(initialResponses);
-         setLoading(false);
+         setFsmState('ACTIVE');
       })
       .catch(e => {
          setError(e.message);
-         setLoading(false);
+         setFsmState('FAILED');
       });
   }, [attemptId, router]);
 
+  // Server-Calibrated Timer Tick
   useEffect(() => {
-    if (!attempt) return;
+    if (fsmState !== 'ACTIVE') return;
     const interval = setInterval(() => {
-      setTimeRemaining(prev => {
-        if (prev <= 1) {
-           clearInterval(interval);
-           handleSubmit(true);
-           return 0;
-        }
-        return prev - 1;
-      });
+      const calibratedNow = Date.now() + timeOffsetRef.current;
+      const remainingMs = Math.max(0, expiresAtRef.current - calibratedNow);
+      const remainingSeconds = Math.floor(remainingMs / 1000);
+      setTimeRemaining(remainingSeconds);
+
+      if (remainingSeconds <= 0) {
+         clearInterval(interval);
+         handleSubmit(true);
+      }
     }, 1000);
     return () => clearInterval(interval);
-  }, [attempt]);
+  }, [fsmState]);
 
-  const saveResponse = useCallback(async (qId: string, optId: string | null, marked: boolean) => {
-    setSaving(true);
+  // Background Sync Worker
+  useEffect(() => {
+    if (fsmState !== 'ACTIVE' && fsmState !== 'RECONNECTING') return;
+    
+    const syncInterval = setInterval(async () => {
+      if (syncQueueRef.current.length === 0 || isSyncingRef.current) return;
+      
+      isSyncingRef.current = true;
+      setSyncStatus('SYNCING');
+      
+      // Get the latest distinct requests from the queue (deduplicate)
+      const queue = [...syncQueueRef.current];
+      const dedupedMap = new Map<string, QueueItem>();
+      for (const item of queue) {
+         dedupedMap.set(item.questionId, item);
+      }
+      const itemsToSync = Array.from(dedupedMap.values());
+      
+      try {
+        const promises = itemsToSync.map(item => 
+          fetch(`/api/v1/attempts/${attemptId}/responses`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              questionId: item.questionId,
+              selectedOptionId: item.selectedOptionId,
+              markedForReview: item.markedForReview
+            })
+          }).then(res => {
+            if (!res.ok) throw new Error('Network response was not ok');
+          })
+        );
+        
+        await Promise.all(promises);
+        
+        // Remove synced items from queue
+        syncQueueRef.current = syncQueueRef.current.filter(
+          qi => !itemsToSync.find(s => s.questionId === qi.questionId && s.timestamp === qi.timestamp)
+        );
+        
+        setSyncStatus(syncQueueRef.current.length > 0 ? 'SYNCING' : 'SYNCED');
+        if (fsmState === 'RECONNECTING') setFsmState('ACTIVE');
+      } catch (error) {
+        console.error('Sync failed, will retry', error);
+        setSyncStatus('ERROR');
+        setFsmState('RECONNECTING');
+      } finally {
+        isSyncingRef.current = false;
+      }
+    }, 2000); // Poll every 2 seconds
+    
+    return () => clearInterval(syncInterval);
+  }, [attemptId, fsmState]);
+
+  const saveResponseOptimistic = useCallback((qId: string, optId: string | null, marked: boolean) => {
+    if (fsmState === 'SUBMITTING' || fsmState === 'FAILED') return;
+    
+    // Optimistic UI update
     setResponses(prev => ({...prev, [qId]: { selectedOptionId: optId, markedForReview: marked }}));
-    try {
-      await fetch(`/api/v1/attempts/${attemptId}/responses`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questionId: qId, selectedOptionId: optId, markedForReview: marked })
-      });
-    } catch (e) {
-      console.error('Failed to save', e);
-    } finally {
-      setSaving(false);
-    }
-  }, [attemptId]);
+    
+    // Push to background retry queue
+    syncQueueRef.current.push({
+       questionId: qId,
+       selectedOptionId: optId,
+       markedForReview: marked,
+       timestamp: Date.now()
+    });
+    setSyncStatus('SYNCING');
+  }, [fsmState]);
 
   const handleSubmit = async (isAutoSubmit = false) => {
+    if (fsmState === 'SUBMITTING') return; // Prevent double submit
+    if (syncQueueRef.current.length > 0 && !isAutoSubmit) {
+       alert("Please wait for all answers to sync before submitting.");
+       return;
+    }
     if (!isAutoSubmit && !confirm('Are you sure you want to submit the exam?')) return;
+    
+    setFsmState('SUBMITTING');
     try {
-      await fetch(`/api/v1/attempts/${attemptId}/submit`, {
+      const res = await fetch(`/api/v1/attempts/${attemptId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isAutoSubmit })
       });
+      if (!res.ok) throw new Error('Submission failed');
       router.push(`/student/attempts/${attemptId}/result`);
     } catch (e) {
       console.error(e);
-      alert('Failed to submit. Please check connection.');
+      setFsmState('RECONNECTING');
+      alert('Failed to submit. Please check your connection and try again.');
     }
   };
 
-  if (loading) return <div className="fixed inset-0 z-50 bg-slate-50 dark:bg-slate-950 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-indigo-500"/></div>;
-  if (error) return <div className="fixed inset-0 z-50 bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-red-600 font-bold">{error}</div>;
+  if (fsmState === 'LOADING') return <div className="fixed inset-0 z-50 bg-slate-50 dark:bg-slate-950 flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-indigo-500"/></div>;
+  if (fsmState === 'FAILED' && !attempt) return <div className="fixed inset-0 z-50 bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-red-600 font-bold">{error}</div>;
   if (!attempt) return null;
 
   const sections = attempt.examVersion.sections;
@@ -109,9 +189,9 @@ export function CBTWorkspace({ attemptId }: { attemptId: string }) {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleClear = () => saveResponse(activeQuestion.id, null, activeResponse.markedForReview);
-  const handleMarkReview = () => saveResponse(activeQuestion.id, activeResponse.selectedOptionId, !activeResponse.markedForReview);
-  const handleOptionSelect = (optId: string) => saveResponse(activeQuestion.id, optId, activeResponse.markedForReview);
+  const handleClear = () => saveResponseOptimistic(activeQuestion.id, null, activeResponse.markedForReview);
+  const handleMarkReview = () => saveResponseOptimistic(activeQuestion.id, activeResponse.selectedOptionId, !activeResponse.markedForReview);
+  const handleOptionSelect = (optId: string) => saveResponseOptimistic(activeQuestion.id, optId, activeResponse.markedForReview);
 
   const goNext = () => {
      if (activeQuestionIdx < activeSection.questions.length - 1) {
@@ -131,20 +211,30 @@ export function CBTWorkspace({ attemptId }: { attemptId: string }) {
      }
   };
 
+  const isInteractive = fsmState === 'ACTIVE' || fsmState === 'RECONNECTING';
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col h-screen bg-slate-100 dark:bg-slate-950 font-sans">
       <header className="bg-indigo-600 text-white p-4 flex justify-between items-center shadow-md z-10 shrink-0">
-        <div>
+        <div className="flex items-center gap-4">
            <h1 className="text-xl font-bold">{attempt.examVersion.exam.title}</h1>
+           {syncStatus === 'SYNCING' && <span className="text-sm bg-indigo-500 px-2 py-1 rounded flex items-center gap-2"><CloudUpload className="w-4 h-4 animate-pulse"/> Saving...</span>}
+           {syncStatus === 'ERROR' && <span className="text-sm bg-red-500 px-2 py-1 rounded flex items-center gap-2"><WifiOff className="w-4 h-4"/> Offline (Retrying...)</span>}
         </div>
         <div className="flex items-center gap-6">
            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-lg ${timeRemaining < 300 ? 'bg-red-500 animate-pulse' : 'bg-indigo-800'}`}>
               <Clock className="w-5 h-5" />
               {formatTime(timeRemaining)}
            </div>
-           {saving && <Loader2 className="w-5 h-5 animate-spin opacity-50" />}
+           {fsmState === 'SUBMITTING' && <Loader2 className="w-5 h-5 animate-spin opacity-50" />}
         </div>
       </header>
+
+      {fsmState === 'RECONNECTING' && (
+         <div className="bg-amber-100 text-amber-800 p-2 text-center text-sm font-semibold border-b border-amber-200 shadow-inner flex items-center justify-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin"/> Connection lost. Retrying... you can continue answering, but do not close this window.
+         </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
@@ -161,7 +251,7 @@ export function CBTWorkspace({ attemptId }: { attemptId: string }) {
            </div>
            
            <div className="flex-1 overflow-y-auto p-8">
-              <div className="max-w-4xl mx-auto">
+              <div className="max-w-4xl mx-auto opacity-100 transition-opacity" style={{ opacity: !isInteractive ? 0.6 : 1 }}>
                  <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Question {activeQuestion.displayNumber}</h2>
                     <div className="flex gap-4">
@@ -179,9 +269,10 @@ export function CBTWorkspace({ attemptId }: { attemptId: string }) {
                        return (
                          <div 
                            key={opt.id}
-                           onClick={() => handleOptionSelect(opt.id)}
-                           className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-4
-                             ${isSelected ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'}
+                           onClick={() => isInteractive && handleOptionSelect(opt.id)}
+                           className={`p-4 rounded-xl border-2 transition-all flex items-center gap-4
+                             ${isInteractive ? 'cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-700' : 'cursor-not-allowed opacity-80'}
+                             ${isSelected ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700'}
                            `}
                          >
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm
@@ -201,10 +292,10 @@ export function CBTWorkspace({ attemptId }: { attemptId: string }) {
 
            <div className="p-4 border-t border-slate-200 dark:border-slate-800 shrink-0 flex justify-between bg-slate-50 dark:bg-slate-900/50">
               <div className="flex gap-2">
-                 <button onClick={handleMarkReview} className={`px-4 py-2 rounded-md font-medium text-sm flex items-center ${activeResponse.markedForReview ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
+                 <button disabled={!isInteractive} onClick={handleMarkReview} className={`px-4 py-2 rounded-md font-medium text-sm flex items-center disabled:opacity-50 ${activeResponse.markedForReview ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
                     <Bookmark className="w-4 h-4 mr-2"/> {activeResponse.markedForReview ? 'Unmark Review' : 'Mark for Review'}
                  </button>
-                 <button onClick={handleClear} disabled={!activeResponse.selectedOptionId} className="px-4 py-2 rounded-md font-medium text-sm bg-slate-200 text-slate-700 hover:bg-slate-300 disabled:opacity-50">
+                 <button onClick={handleClear} disabled={!isInteractive || !activeResponse.selectedOptionId} className="px-4 py-2 rounded-md font-medium text-sm bg-slate-200 text-slate-700 hover:bg-slate-300 disabled:opacity-50">
                     Clear Response
                  </button>
               </div>
@@ -247,8 +338,8 @@ export function CBTWorkspace({ attemptId }: { attemptId: string }) {
               })}
            </div>
            <div className="p-4 border-t border-slate-200 dark:border-slate-800 mt-auto">
-              <button onClick={() => handleSubmit(false)} className="w-full bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 py-3 text-lg">
-                 Submit Exam
+              <button disabled={fsmState === 'SUBMITTING'} onClick={() => handleSubmit(false)} className="w-full bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 py-3 text-lg disabled:opacity-50">
+                 {fsmState === 'SUBMITTING' ? 'Submitting...' : 'Submit Exam'}
               </button>
            </div>
         </aside>
