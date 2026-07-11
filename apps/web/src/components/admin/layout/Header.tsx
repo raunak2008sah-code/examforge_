@@ -29,19 +29,26 @@ export function Header({ user, onMenuClick }: HeaderProps) {
           </div>
           <div className="text-meta">{user.role}</div>
         </div>
-        <form action="/api/auth/signout" method="POST">
-          <button
-            type="submit"
-            title="Sign out"
-            style={{
-              padding: 'var(--space-2)',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            <LogOut size={20} />
-          </button>
-        </form>
+        <button
+          title="Sign out"
+          onClick={async () => {
+            const { authClient } = await import('@/lib/auth-client');
+            await authClient.signOut({
+              fetchOptions: {
+                onSuccess: () => {
+                  window.location.href = '/login';
+                },
+              },
+            });
+          }}
+          style={{
+            padding: 'var(--space-2)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-secondary)',
+          }}
+        >
+          <LogOut size={20} />
+        </button>
       </div>
     </header>
   );

@@ -20,7 +20,15 @@ export default async function StudentLayout({ children }: { children: ReactNode 
         </h1>
         <div className="flex items-center gap-4 text-sm font-medium text-slate-600 dark:text-slate-300">
           <span>{session.user.name}</span>
-          <form action="/api/auth/signout" method="POST">
+          <form action={async () => {
+            'use server';
+            const { auth } = await import('@/server/auth/auth');
+            const { headers } = await import('next/headers');
+            await auth.api.signOut({
+              headers: await headers()
+            });
+            redirect('/login');
+          }}>
              <button type="submit" className="text-slate-400 hover:text-slate-600 transition-colors underline">Logout</button>
           </form>
         </div>
