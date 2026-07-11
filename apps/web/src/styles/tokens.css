@@ -1,0 +1,124 @@
+/* apps/web/src/styles/tokens.css */
+
+:root,
+:root[data-theme="light"] {
+  /* Colors */
+  --bg-canvas: #f7f6f3;
+  --bg-surface: #ffffff;
+  --bg-sunken: #efeeea;
+  --text-primary: #1e2124;
+  --text-secondary: #54595f;
+  --border-subtle: #e4e2dc;
+  
+  --brand-primary: #2b3a67;
+  --brand-primary-hover: #233056;
+  
+  --accent-amber: #a6790c;
+  --state-success: #1f7a4d;
+  --state-error: #b3261e;
+  --state-info: #3b6ea5;
+  
+  --timer-calm-bg: var(--bg-sunken);
+  --timer-calm-text: var(--text-secondary);
+  --timer-urgent-bg: var(--bg-sunken);
+  --timer-urgent-text: #b3261e;
+
+  /* Typography */
+  --font-ui: "Inter", sans-serif;
+  --font-question: "Source Serif 4", serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-full: 9999px;
+
+  /* Elevation */
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --elevation-2: 0 4px 16px rgba(0, 0, 0, 0.1);
+
+  /* Opacity */
+  --opacity-disabled: 0.45;
+  --opacity-hover-overlay: 0.06;
+  --opacity-pressed-overlay: 0.12;
+  --opacity-scrim: 0.40;
+
+  /* Blur */
+  --blur-scrim: 4px;
+
+  /* Z-Index */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-dropdown: 20;
+  --z-overlay-scrim: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+  --z-tooltip: 60;
+
+  /* Motion */
+  --motion-instant: 0ms;
+  --motion-fast: 120ms ease-out;
+  --motion-base: 160ms ease-out;
+  --motion-modal: 180ms ease-out;
+  --motion-route: 100ms ease-in-out;
+
+  /* Focus rings */
+  --focus-ring: 2px solid var(--brand-primary);
+  --focus-ring-offset: 2px;
+  --overlay-scrim-color: rgba(0, 0, 0, var(--opacity-scrim));
+  --overlay-sheet-radius: var(--radius-md) var(--radius-md) 0 0;
+
+  /* Container Widths */
+  --scrollbar-width: 10px;
+  --container-admin: 1120px;
+  --container-exam-question: 65ch;
+  --container-form: 480px;
+  --container-modal: 520px;
+  --container-modal-large: 720px;
+}
+
+:root[data-theme="dark"] {
+  --bg-canvas: #15171a;
+  --bg-surface: #1c1f23;
+  --bg-sunken: #111315;
+  --text-primary: #edebe7;
+  --text-secondary: #a6acb3;
+  --border-subtle: #2a2d31;
+  
+  --brand-primary: #7c8fcb;
+  --brand-primary-hover: #93a4d6;
+  
+  --accent-amber: #d9a441;
+  --state-success: #4fbe86;
+  --state-error: #e5847c;
+  --state-info: #8fb4de;
+  
+  --timer-urgent-text: #e5847c;
+
+  --opacity-hover-overlay: 0.10;
+  --opacity-pressed-overlay: 0.16;
+
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --elevation-2: 0 4px 16px rgba(0, 0, 0, 0.5);
+
+  --focus-ring: 2px solid var(--brand-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-modal: 0ms;
+  }
+}

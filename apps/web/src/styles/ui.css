@@ -1,0 +1,219 @@
+/* apps/web/src/styles/ui.css */
+/* Generic Design System UI Classes */
+
+/* 
+ * Forms 
+ */
+.ef-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+}
+
+.ef-label {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.ef-input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  transition: border-color var(--motion-fast);
+  width: 100%;
+}
+
+.ef-input:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+}
+
+.ef-input:disabled {
+  opacity: var(--opacity-disabled);
+  background-color: var(--bg-sunken);
+  cursor: not-allowed;
+}
+
+.ef-input-error {
+  border-color: var(--state-error);
+}
+
+.ef-help-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.ef-error-text {
+  font-size: 12px;
+  color: var(--state-error);
+  margin-top: 4px;
+}
+
+/* 
+ * Buttons 
+ */
+.ef-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  font-size: 14px;
+  transition: all var(--motion-fast);
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ef-button:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.ef-button-primary {
+  background-color: var(--brand-primary);
+  color: #ffffff;
+}
+
+.ef-button-primary:hover:not(:disabled) {
+  background-color: var(--brand-primary-hover);
+}
+
+.ef-button-secondary {
+  background-color: transparent;
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.ef-button-secondary:hover:not(:disabled) {
+  background-color: rgba(0, 0, 0, var(--opacity-hover-overlay));
+}
+
+.ef-button-danger {
+  background-color: transparent;
+  border-color: var(--state-error);
+  color: var(--state-error);
+}
+
+.ef-button-danger:hover:not(:disabled) {
+  background-color: rgba(179, 38, 30, 0.1);
+}
+
+/* 
+ * Tables 
+ */
+.ef-table-container {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-surface);
+}
+
+.ef-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.ef-th {
+  padding: var(--space-3) var(--space-4);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  background-color: var(--bg-sunken);
+  white-space: nowrap;
+}
+
+.ef-td {
+  padding: var(--space-3) var(--space-4);
+  font-size: 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ef-tr:last-child .ef-td {
+  border-bottom: none;
+}
+
+.ef-tr:hover .ef-td {
+  background-color: rgba(0, 0, 0, var(--opacity-hover-overlay));
+}
+
+/* 
+ * Overlays (Modals, Drawers)
+ */
+.ef-dialog-backdrop::backdrop {
+  background-color: var(--overlay-scrim-color);
+  backdrop-filter: blur(var(--blur-scrim));
+}
+
+.ef-modal {
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background-color: var(--bg-surface);
+  box-shadow: var(--elevation-2);
+  width: 100%;
+  max-width: var(--container-modal);
+  color: var(--text-primary);
+}
+
+.ef-modal-header {
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ef-modal-body {
+  padding: var(--space-5);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.ef-modal-footer {
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  background-color: var(--bg-sunken);
+}
+
+/* 
+ * Layouts 
+ */
+.ef-split-pane {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.ef-split-pane-left {
+  flex: 1;
+  border-right: 1px solid var(--border-subtle);
+  overflow-y: auto;
+}
+
+.ef-split-pane-right {
+  width: 400px;
+  background-color: var(--bg-sunken);
+  overflow-y: auto;
+}
+
+.ef-grid-responsive {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-4);
+}

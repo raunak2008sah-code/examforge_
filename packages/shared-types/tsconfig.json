@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Output to dist/ — consumed by both apps/web and apps/doc-processor type checks
+    "outDir": "dist",
+    "rootDir": "src",
+
+    // Shared types are runtime-agnostic — no DOM, no Node-specific globals
+    "lib": ["es2022"],
+    "module": "commonjs",
+    "moduleResolution": "node"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
