@@ -19,10 +19,49 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    disableSignUp: true,
+    disableSignUp: false,
+    requireEmailVerification: true,
     minPasswordLength: 8,
     maxPasswordLength: 128,
     resetPasswordTokenExpiresIn: 60 * 60,
+    sendResetPassword: async ({ user, url, token }, request) => {
+      const { EmailService } = await import('../services/email.service');
+      await EmailService.sendTransactionalEmail({
+        to: user.email,
+        subject: 'Reset your password',
+        html: `<p>Click <a href="${url}">here</a> to reset your password.</p>`,
+      });
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url, token }, request) => {
+      const { EmailService } = await import('../services/email.service');
+      await EmailService.sendTransactionalEmail({
+        to: user.email,
+        subject: 'Verify your email address',
+        html: `<p>Click <a href="${url}">here</a> to verify your email.</p>`,
+      });
+    }
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          // Ensure new users get the STUDENT role by default
+          const role = await prisma.role.findUnique({ where: { name: 'STUDENT' } });
+          if (!role) throw new Error('STUDENT role not found in database');
+          
+          return {
+            data: {
+              ...user,
+              roleId: role.id
+            }
+          };
+        }
+      }
+    }
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7,
