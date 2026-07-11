@@ -10,7 +10,7 @@ export const AssetRefSchema = z.object({
 
 export const ParsedOptionSchema = z.object({
   id: z.string(),
-  label: z.enum(['A', 'B', 'C', 'D']),
+  label: z.enum(['A', 'B', 'C', 'D', 'E', 'F']),
   text: z.string(),
   isCorrect: z.boolean().optional(),
 });
@@ -21,7 +21,7 @@ export const ParsedQuestionSchema = z.object({
   id: z.string(),
   displayNumber: z.string(),
   statement: z.string(),
-  options: z.array(ParsedOptionSchema).length(4),
+  options: z.array(ParsedOptionSchema),
   correctOption: z.string().nullable(),
   images: z.array(AssetRefSchema).optional(),
   tables: z.array(AssetRefSchema).optional(),

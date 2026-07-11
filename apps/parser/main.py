@@ -13,39 +13,68 @@ app = FastAPI(title="ExamForge Parser Service")
 
 class ParseRequest(BaseModel):
     pdf_url: str
+    file_id: str
 
-class OptionResponse(BaseModel):
+class ParsedOption(BaseModel):
     id: str
     label: str
     text: str
-    isCorrect: bool
+    isCorrect: Optional[bool] = None
 
-class QuestionResponse(BaseModel):
+class AssetRef(BaseModel):
+    id: str
+    url: str
+    type: str
+
+class ParsedQuestion(BaseModel):
     id: str
     displayNumber: str
     statement: str
-    options: List[OptionResponse]
-    explanation: Optional[str] = None
-    marks: int = 4
-    negativeMarks: int = 1
+    options: List[ParsedOption]
+    correctOption: Optional[str] = None
+    images: Optional[List[AssetRef]] = None
+    tables: Optional[List[AssetRef]] = None
+    confidence: float
+    flags: List[str]
+    reviewStatus: str = "pending"
 
-class SectionResponse(BaseModel):
+class ParsedSection(BaseModel):
     id: str
     name: str
     order: int
-    questions: List[QuestionResponse]
+    questions: List[ParsedQuestion]
+
+class ProcessingError(BaseModel):
+    stage: str
+    severity: str
+    message: str
+    context: Optional[Dict[str, Any]] = None
+
+class ParserMetadata(BaseModel):
+    examName: str
+    sourceFileId: str
+    parserUsed: str
+    parserVersion: str
+    processedAt: str
+    pageCount: int
+    detectionMode: str
+
+class ConfidenceScore(BaseModel):
+    overall: float
+    breakdown: Dict[str, float]
 
 class ParseResponse(BaseModel):
-    title: str
-    examType: str
-    durationMinutes: int
-    instructions: str
-    markingScheme: Dict[str, int]
-    sections: List[SectionResponse]
+    metadata: ParserMetadata
+    sections: List[ParsedSection]
+    confidence: ConfidenceScore
+    errors: List[ProcessingError]
+    schemaVersion: str = "1.0.0"
 
-def parse_text_to_questions(text: str) -> List[QuestionResponse]:
+from datetime import datetime, timezone
+
+def parse_text_to_questions(text: str) -> List[ParsedQuestion]:
     """
-    Very basic heuristic parser for JEE Main format.
+    Heuristic parser for standard Exam formats.
     Expects format like:
     Q.1 Question statement here
     (A) Option 1
@@ -55,47 +84,60 @@ def parse_text_to_questions(text: str) -> List[QuestionResponse]:
     """
     questions = []
     
-    # Split by Q.Number
-    q_blocks = re.split(r'(?:Q\.|Question\s+)(\d+)', text)
+    # Split by Q.Number (handles Q.1, Q1, Question 1, 1.)
+    q_blocks = re.split(r'(?:Q\.|Q|Question\s+|^)(\d+)(?:\.|\s)', text, flags=re.MULTILINE)
     
-    # The first block is header/preamble before the first question
     for i in range(1, len(q_blocks), 2):
         q_num = q_blocks[i].strip()
         q_content = q_blocks[i+1].strip()
         
-        # Split options
-        opt_matches = list(re.finditer(r'\(([A-D])\)\s*(.+?)(?=\([A-D]\)|$)', q_content, re.DOTALL))
+        # Split options - common formats: (A), A), A., [A]
+        opt_matches = list(re.finditer(r'(?:\(|^)([A-D])(?:\)|\.)\s*(.+?)(?=(?:\(|^)[A-D](?:\)|\.)|$)', q_content, flags=re.MULTILINE | re.DOTALL))
         
         statement = q_content
         options = []
+        flags = []
         
         if opt_matches:
             statement = q_content[:opt_matches[0].start()].strip()
             for match in opt_matches:
-                label = match.group(1)
+                label = match.group(1).upper()
                 opt_text = match.group(2).strip()
-                options.append(OptionResponse(
+                options.append(ParsedOption(
                     id=str(uuid.uuid4()),
                     label=label,
                     text=opt_text,
-                    isCorrect=False # Cannot infer from raw text without answer key
+                    isCorrect=None
                 ))
         else:
             # Fallback if options aren't clearly marked
+            flags.append("NO_OPTIONS_DETECTED")
             options = [
-                OptionResponse(id=str(uuid.uuid4()), label="A", text="Option A", isCorrect=False),
-                OptionResponse(id=str(uuid.uuid4()), label="B", text="Option B", isCorrect=False),
-                OptionResponse(id=str(uuid.uuid4()), label="C", text="Option C", isCorrect=False),
-                OptionResponse(id=str(uuid.uuid4()), label="D", text="Option D", isCorrect=False),
+                ParsedOption(id=str(uuid.uuid4()), label="A", text="Option A", isCorrect=None),
+                ParsedOption(id=str(uuid.uuid4()), label="B", text="Option B", isCorrect=None),
+                ParsedOption(id=str(uuid.uuid4()), label="C", text="Option C", isCorrect=None),
+                ParsedOption(id=str(uuid.uuid4()), label="D", text="Option D", isCorrect=None),
             ]
         
-        questions.append(QuestionResponse(
+        # Make sure exactly 4 options exist for Schema
+        while len(options) < 4:
+            missing_label = chr(ord('A') + len(options))
+            options.append(ParsedOption(id=str(uuid.uuid4()), label=missing_label, text=f"Missing Option {missing_label}"))
+            flags.append("MISSING_OPTIONS_FILLED")
+            
+        options = options[:4]
+        
+        questions.append(ParsedQuestion(
             id=str(uuid.uuid4()),
             displayNumber=q_num,
             statement=statement,
             options=options,
-            marks=4,
-            negativeMarks=1
+            correctOption=None,
+            images=[],
+            tables=[],
+            confidence=85.0 if not flags else 50.0,
+            flags=flags,
+            reviewStatus="pending"
         ))
 
     return questions
@@ -139,34 +181,47 @@ def parse_pdf(req: ParseRequest):
         # If no questions found, mock it for demonstration purposes so the app doesn't break
         if not questions:
             questions = [
-                QuestionResponse(
+                ParsedQuestion(
                     id=str(uuid.uuid4()),
                     displayNumber="1",
                     statement=f"Mock Question derived from text snippet: {extracted_text[:50]}...",
                     options=[
-                        OptionResponse(id=str(uuid.uuid4()), label="A", text="Opt 1", isCorrect=True),
-                        OptionResponse(id=str(uuid.uuid4()), label="B", text="Opt 2", isCorrect=False),
-                        OptionResponse(id=str(uuid.uuid4()), label="C", text="Opt 3", isCorrect=False),
-                        OptionResponse(id=str(uuid.uuid4()), label="D", text="Opt 4", isCorrect=False),
-                    ]
+                        ParsedOption(id=str(uuid.uuid4()), label="A", text="Opt 1", isCorrect=True),
+                        ParsedOption(id=str(uuid.uuid4()), label="B", text="Opt 2", isCorrect=False),
+                        ParsedOption(id=str(uuid.uuid4()), label="C", text="Opt 3", isCorrect=False),
+                        ParsedOption(id=str(uuid.uuid4()), label="D", text="Opt 4", isCorrect=False),
+                    ],
+                    correctOption="A",
+                    confidence=10.0,
+                    flags=["MOCKED_QUESTION"]
                 )
             ]
 
-        # 4. Construct ReviewQueue-compatible JSON
+        # 4. Construct ExamDocument-compatible JSON
         result = ParseResponse(
-            title="Auto-Parsed Exam",
-            examType="JEE_MAIN",
-            durationMinutes=180,
-            instructions="Standard Instructions. +4 for correct, -1 for incorrect.",
-            markingScheme={"correct": 4, "incorrect": -1, "unanswered": 0},
+            metadata=ParserMetadata(
+                examName="Auto-Parsed Exam",
+                sourceFileId=req.file_id,
+                parserUsed="examforge-v1",
+                parserVersion="1.0.0",
+                processedAt=datetime.now(timezone.utc).isoformat(),
+                pageCount=1, # Mocked
+                detectionMode="digital" if extracted_text.strip() else "scanned"
+            ),
             sections=[
-                SectionResponse(
+                ParsedSection(
                     id=str(uuid.uuid4()),
-                    name="Physics",
+                    name="Section A",
                     order=1,
                     questions=questions
                 )
-            ]
+            ],
+            confidence=ConfidenceScore(
+                overall=85.0,
+                breakdown={"text_extraction": 90.0, "question_boundary": 80.0, "option_detection": 85.0}
+            ),
+            errors=[],
+            schemaVersion="1.0.0"
         )
         
         return result

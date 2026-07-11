@@ -31,7 +31,10 @@ export class RealParserAdapter {
       const response = await fetch(`${PARSER_SERVICE_URL}/parse`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pdf_url: signedUrl })
+        body: JSON.stringify({ 
+          pdf_url: signedUrl,
+          file_id: job.file.id
+        })
       });
 
       if (!response.ok) {
@@ -40,16 +43,19 @@ export class RealParserAdapter {
       }
 
       const parsedJson = await response.json();
+      
+      const { ExamDocumentSchema } = await import('@examforge/shared-types');
+      const validatedJson = ExamDocumentSchema.parse(parsedJson);
 
       // 4. Update Job and create ReviewQueue
       const updatedJob = await ParserJobRepository.updateStatus(job.id, 'COMPLETED', {
-        overallConfidence: 0.85, // We can get this dynamically from parser later
-        resultJson: { message: "Parsed successfully via FastAPI" } as any
+        overallConfidence: validatedJson.confidence.overall,
+        resultJson: validatedJson as any
       });
 
       await ReviewQueueRepository.create({
         parserJobId: job.id,
-        workingJson: parsedJson as any,
+        workingJson: validatedJson as any,
         status: 'PENDING',
       });
 
