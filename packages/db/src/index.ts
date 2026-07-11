@@ -14,6 +14,18 @@ export {
   ExamType,
 } from '@prisma/client';
 
+export type {
+  User,
+  Exam,
+  ExamVersion,
+  Question,
+  Attempt,
+  UploadedFile,
+  ParserJob,
+  ReviewQueue,
+  SavedExam,
+} from '@prisma/client';
+
 const createPrismaClient = () => {
   const client = new PrismaClient();
 
