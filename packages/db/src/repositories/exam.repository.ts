@@ -95,4 +95,118 @@ export class ExamRepository {
       return exam;
     });
   }
+
+  static async findOfficialExams(params: { search?: string; limit: number; skip: number }) {
+    const where: any = {
+      isOfficial: true,
+      visibility: 'PUBLIC',
+      currentVersionId: { not: null },
+    };
+
+    if (params.search) {
+      where.title = { contains: params.search, mode: 'insensitive' };
+    }
+
+    const [exams, total] = await Promise.all([
+      prisma.exam.findMany({
+        where,
+        include: {
+          currentVersion: true,
+          owner: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: params.skip,
+        take: params.limit,
+      }),
+      prisma.exam.count({ where })
+    ]);
+
+    return { exams, total };
+  }
+
+  static async findMyExams(userId: string, params: { search?: string; limit: number; skip: number }) {
+    const where: any = {
+      ownerId: userId,
+    };
+
+    if (params.search) {
+      where.title = { contains: params.search, mode: 'insensitive' };
+    }
+
+    const [exams, total] = await Promise.all([
+      prisma.exam.findMany({
+        where,
+        include: {
+          currentVersion: true,
+          owner: { select: { name: true } },
+          versions: {
+            select: { id: true, status: true, versionNumber: true },
+            orderBy: { versionNumber: 'desc' },
+            take: 1
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: params.skip,
+        take: params.limit,
+      }),
+      prisma.exam.count({ where })
+    ]);
+
+    return { exams, total };
+  }
+
+  static async findSavedExams(userId: string, params: { search?: string; limit: number; skip: number }) {
+    const where: any = {
+      savedBy: { some: { userId } },
+    };
+
+    if (params.search) {
+      where.title = { contains: params.search, mode: 'insensitive' };
+    }
+
+    const [exams, total] = await Promise.all([
+      prisma.exam.findMany({
+        where,
+        include: {
+          currentVersion: true,
+          owner: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: params.skip,
+        take: params.limit,
+      }),
+      prisma.exam.count({ where })
+    ]);
+
+    return { exams, total };
+  }
+
+  static async isExamSaved(userId: string, examId: string): Promise<boolean> {
+    const count = await prisma.savedExam.count({
+      where: { userId, examId }
+    });
+    return count > 0;
+  }
+
+  static async toggleSavedExam(userId: string, examId: string): Promise<boolean> {
+    const existing = await prisma.savedExam.findUnique({
+      where: {
+        userId_examId: { userId, examId }
+      }
+    });
+
+    if (existing) {
+      await prisma.savedExam.delete({
+        where: {
+          userId_examId: { userId, examId }
+        }
+      });
+      return false; // Not saved anymore
+    } else {
+      await prisma.savedExam.create({
+        data: { userId, examId }
+      });
+      return true; // Now saved
+    }
+  }
 }

@@ -2,13 +2,16 @@ import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { prisma } from '@examforge/db';
 
-const configuredOrigins = [process.env.BETTER_AUTH_URL, process.env.NEXT_PUBLIC_APP_URL].filter(
-  (origin): origin is string => Boolean(origin),
-);
+const configuredOrigins = [
+  process.env.BETTER_AUTH_URL, 
+  process.env.NEXT_PUBLIC_APP_URL,
+  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+  process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : undefined
+].filter((origin): origin is string => Boolean(origin));
 
 export const auth = betterAuth({
   appName: 'ExamForge',
-  baseURL: process.env.BETTER_AUTH_URL,
+  baseURL: process.env.BETTER_AUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined),
   secret: process.env.BETTER_AUTH_SECRET,
   trustedOrigins: configuredOrigins,
   database: prismaAdapter(prisma, {
