@@ -11,6 +11,9 @@ export const permissions = {
   viewPublishedExams: 'view:published-exams',
   manageOwnAttempts: 'manage:own-attempts',
   viewOwnResults: 'view:own-results',
+  manageOwnUploads: 'manage:own-uploads',
+  reviewOwnParserOutput: 'review:own-parser-output',
+  manageOwnExams: 'manage:own-exams',
 } as const;
 
 export type Permission = (typeof permissions)[keyof typeof permissions];
@@ -35,6 +38,9 @@ const rolePermissions: Record<RoleName, readonly Permission[]> = {
     permissions.viewPublishedExams,
     permissions.manageOwnAttempts,
     permissions.viewOwnResults,
+    permissions.manageOwnUploads,
+    permissions.reviewOwnParserOutput,
+    permissions.manageOwnExams,
   ],
 };
 

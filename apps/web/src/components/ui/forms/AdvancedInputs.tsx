@@ -9,7 +9,8 @@ export interface DatePickerProps extends React.InputHTMLAttributes<HTMLInputElem
 
 export const DatePicker = forwardRef<HTMLInputElement, DatePickerProps>(
   ({ label, error, helperText, className, id, ...props }, ref) => {
-    const inputId = id || Math.random().toString(36).substring(7);
+    const reactId = React.useId();
+    const inputId = id || reactId;
 
     return (
       <div className="ef-input-wrapper">
@@ -35,7 +36,8 @@ DatePicker.displayName = 'DatePicker';
 
 export const TimePicker = forwardRef<HTMLInputElement, DatePickerProps>(
   ({ label, error, helperText, className, id, ...props }, ref) => {
-    const inputId = id || Math.random().toString(36).substring(7);
+    const reactId = React.useId();
+    const inputId = id || reactId;
 
     return (
       <div className="ef-input-wrapper">
@@ -61,7 +63,8 @@ TimePicker.displayName = 'TimePicker';
 
 export const FileUploadField = forwardRef<HTMLInputElement, DatePickerProps>(
   ({ label, error, helperText, className, id, onChange, ...props }, ref) => {
-    const inputId = id || Math.random().toString(36).substring(7);
+    const reactId = React.useId();
+    const inputId = id || reactId;
     const [fileName, setFileName] = React.useState<string | null>(null);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

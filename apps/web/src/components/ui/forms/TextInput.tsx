@@ -9,7 +9,8 @@ export interface TextInputProps extends React.InputHTMLAttributes<HTMLInputEleme
 
 export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
   ({ label, error, helperText, className, id, ...props }, ref) => {
-    const inputId = id || Math.random().toString(36).substring(7);
+    const reactId = React.useId();
+    const inputId = id || reactId;
 
     return (
       <div className="ef-input-wrapper">

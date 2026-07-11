@@ -128,3 +128,10 @@ export const prisma = globalThis.prismaGlobal ?? createPrismaClient();
 if (process.env.NODE_ENV !== 'production') {
   globalThis.prismaGlobal = prisma;
 }
+
+export * from './repositories/uploaded-file.repository';
+export * from './repositories/parser-job.repository';
+export * from './repositories/review-queue.repository';
+export * from './repositories/exam.repository';
+export * from './repositories/attempt.repository';
+

@@ -8,7 +8,8 @@ export interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextArea
 
 export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
   ({ label, error, helperText, className, id, ...props }, ref) => {
-    const inputId = id || Math.random().toString(36).substring(7);
+    const reactId = React.useId();
+    const inputId = id || reactId;
 
     return (
       <div className="ef-input-wrapper">

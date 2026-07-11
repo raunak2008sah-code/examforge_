@@ -20,8 +20,16 @@ export class AuthServiceError extends Error {
   }
 }
 
+const roleCache = new Map<string, { role: any, isActive: boolean, expiresAt: number }>();
+
 const loadActiveUserRole = async (userId: string) => {
-  return prisma.user.findFirst({
+  const now = Date.now();
+  const cached = roleCache.get(userId);
+  if (cached && cached.expiresAt > now) {
+    return { isActive: cached.isActive, role: cached.role };
+  }
+
+  const user = await prisma.user.findFirst({
     where: {
       id: userId,
       isActive: true,
@@ -36,6 +44,12 @@ const loadActiveUserRole = async (userId: string) => {
       },
     },
   });
+
+  if (user) {
+    roleCache.set(userId, { role: user.role, isActive: user.isActive, expiresAt: now + 60000 }); // 1 minute cache
+  }
+
+  return user;
 };
 
 const enrichSession = async (

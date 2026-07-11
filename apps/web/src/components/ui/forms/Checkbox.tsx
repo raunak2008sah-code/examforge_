@@ -152,6 +152,7 @@ export const ToggleSwitch = forwardRef<HTMLInputElement, CheckboxProps>(
               {description}
             </p>
           )}
+          {error && <span className="ef-error-text">{error}</span>}
         </div>
       </div>
     );
