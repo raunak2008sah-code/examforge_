@@ -6,12 +6,24 @@ const configuredOrigins = [
   process.env.BETTER_AUTH_URL, 
   process.env.NEXT_PUBLIC_APP_URL,
   process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
-  process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : undefined
+  process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : undefined,
+  process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : undefined
 ].filter((origin): origin is string => Boolean(origin));
+
+const getBaseURL = () => {
+  // If we are on Vercel, prioritize Vercel-provided domains to prevent localhost footguns
+  if (process.env.VERCEL_ENV === 'production' && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return process.env.BETTER_AUTH_URL;
+};
 
 export const auth = betterAuth({
   appName: 'ExamForge',
-  baseURL: process.env.BETTER_AUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined),
+  baseURL: getBaseURL(),
   secret: process.env.BETTER_AUTH_SECRET,
   trustedOrigins: configuredOrigins,
   database: prismaAdapter(prisma, {
@@ -43,6 +55,14 @@ export const auth = betterAuth({
         subject: 'Verify your email address',
         html: `<p>Click <a href="${url}">here</a> to verify your email.</p>`,
       });
+    }
+  },
+  user: {
+    additionalFields: {
+      roleId: {
+        type: "string",
+        required: false,
+      }
     }
   },
   databaseHooks: {
